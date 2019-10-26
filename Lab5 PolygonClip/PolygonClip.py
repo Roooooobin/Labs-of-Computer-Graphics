@@ -27,8 +27,11 @@ class PolygonClip(QWidget):
         self.vertexes = []
         # self.vertexes = [(2, 2), (5, 1), (11, 3), (11, 8), (5, 5), (2, 7)]
         # self.vertexes = [(x*50, y*50) for x, y in self.vertexes]
-        self.ET = []  # 类似于一个以扫描线y坐标为索引的哈希表
-        self.AET = None
+        # 裁剪窗口的左上角和右下角两点用以确定矩形
+        self.clipWindowPoint1 = (0, 0)
+        self.isDrawPoint1 = False
+        self.clipWindowPoint3 = (0, 0)
+        self.isDrawPoint3 = False
 
     def paintEvent(self, paintEvent):
         self.painter.begin(self)
@@ -42,13 +45,18 @@ class PolygonClip(QWidget):
         self.painter.end()
         self.update()
 
-    # 涂色
-    def clipPolygon(self, x, y):
-        self.painter.begin(self.board)
-        self.painter.setPen(QPen(Qt.black, 6))
-        self.painter.drawPoint(x, y)
-        self.painter.end()
-        self.update()
+    def drawRectangle(self):
+        clipWindowPoint2 = (self.clipWindowPoint3[0], self.clipWindowPoint1[1])
+        clipWindowPoint4 = (self.clipWindowPoint1[0], self.clipWindowPoint3[1])
+        print(clipWindowPoint2, clipWindowPoint4)
+        self.BresenhamDrawLine(self.clipWindowPoint1[0], self.clipWindowPoint1[1],
+                               clipWindowPoint2[0], clipWindowPoint2[1])
+        self.BresenhamDrawLine(clipWindowPoint2[0], clipWindowPoint2[1],
+                               self.clipWindowPoint3[0], self.clipWindowPoint3[1])
+        self.BresenhamDrawLine(self.clipWindowPoint3[0], self.clipWindowPoint3[1],
+                               clipWindowPoint4[0], clipWindowPoint4[1])
+        self.BresenhamDrawLine(clipWindowPoint4[0], clipWindowPoint4[1],
+                               self.clipWindowPoint1[0], self.clipWindowPoint1[1])
 
     def joinVertexes(self):
         if len(self.vertexes) < 3:
@@ -62,12 +70,23 @@ class PolygonClip(QWidget):
             self.BresenhamDrawLine(self.vertexes[0][0], self.vertexes[0][1], self.vertexes[-1][0], self.vertexes[-1][1])
 
     def mousePressEvent(self, event):
+        x = event.pos().x()
+        y = event.pos().y()
         if event.buttons() == QtCore.Qt.LeftButton:  # 左键按下
-            x = event.pos().x()
-            y = event.pos().y()
             self.vertexes.append((x, y))
             self.paintPoint(x, y)
-        else:  # 如果点击的不是左键，则连接各顶点构成多边形
+        elif event.buttons() == QtCore.Qt.RightButton:  # 如果点击的是右键，则通过两点绘制正则矩形作为裁剪窗口
+            if not self.isDrawPoint1:
+                self.clipWindowPoint1 = (x, y)
+                self.isDrawPoint1 = True
+                self.paintPoint(x, y)
+            elif not self.isDrawPoint3:
+                self.clipWindowPoint3 = (x, y)
+                self.isDrawPoint3 = True
+                self.paintPoint(x, y)
+            else:
+                self.drawRectangle()
+        else:   # 点击其他键（一般是中键）来绘制多边形
             self.joinVertexes()
 
     def mouseDoubleClickEvent(self, event):
