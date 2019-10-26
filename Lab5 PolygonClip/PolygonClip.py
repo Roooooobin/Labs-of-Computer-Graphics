@@ -6,14 +6,6 @@ from PyQt5.QtGui import (QPainter, QPen, QPixmap)
 from PyQt5.QtCore import Qt
 
 
-class Edge:
-    def __init__(self):
-        self.x = None  # 与扫描线相交的点的x坐标
-        self.dx = None  # 斜率的倒数
-        self.y_max = None  # 上端点的y坐标
-        self.next = None  # 指向下一条边
-
-
 class PolygonClip(QWidget):
 
     def __init__(self):
@@ -27,8 +19,6 @@ class PolygonClip(QWidget):
         # 设置起点和终点，并设置标志位以控制打点
         self.vertexes = []
         self.polygon_drawn = False
-        # self.vertexes = [(2, 2), (5, 1), (11, 3), (11, 8), (5, 5), (2, 7)]
-        # self.vertexes = [(x*50, y*50) for x, y in self.vertexes]
         # 裁剪窗口的左上角和右下角两点用以确定矩形
         self.clipWindowPoint1 = (0, 0)
         self.isDrawPoint1 = False
@@ -110,11 +100,6 @@ class PolygonClip(QWidget):
         else:
             pass
 
-    # 判断某个点是否在裁剪窗口内部（包括边界）
-    def is_in_clip_window(self, x, y):
-        return (self.clipWindowPoint1[0] <= x <= self.clipWindowPoint3[0]) and \
-               (self.clipWindowPoint3[1] <= y <= self.clipWindowPoint1[1])
-
     # 求矩形的横边与多边形某条边的交点
     def calc_intersection_length(self, x0, y0, x1, y1, y_length):
         # 多边形的边是平行于x轴的
@@ -154,30 +139,30 @@ class PolygonClip(QWidget):
                 else:  # 横边
                     retained_points.append(self.calc_intersection_length(sx, sy, px, py, y0))
                 retained_points.append((px, py))
+            # 3. s在内侧，p在外侧，保留交点
             elif s_in >= 0 and p_in < 0:
                 if x0 == x1:  # 竖边
                     retained_points.append(self.calc_intersection_width(sx, sy, px, py, x0))
                 else:  # 横边
                     retained_points.append(self.calc_intersection_length(sx, sy, px, py, y0))
+            # 4. 都在外侧，不保留
             else:
                 pass
-        return retained_points
+        # 本次保留的多边形作为下一次裁剪的裁剪对象
+        self.vertexes = retained_points
 
     def sh_clip(self):
-        clipped_polygon_vertexes = []
-        # 按照正则矩形的上边开始顺时针依次进行裁剪，并加入各保留点
-        clipped_polygon_vertexes.extend(self.clip(self.clipWindowPoint1[0], self.clipWindowPoint1[1],
-                                                  self.clipWindowPoint3[0], self.clipWindowPoint1[1]))
-        clipped_polygon_vertexes.extend(self.clip(self.clipWindowPoint3[0], self.clipWindowPoint1[1],
-                                                  self.clipWindowPoint3[0], self.clipWindowPoint3[1]))
-        clipped_polygon_vertexes.extend(self.clip(self.clipWindowPoint3[0], self.clipWindowPoint3[1],
-                                                  self.clipWindowPoint1[0], self.clipWindowPoint3[1]))
-        clipped_polygon_vertexes.extend(self.clip(self.clipWindowPoint1[0], self.clipWindowPoint3[1],
-                                                  self.clipWindowPoint1[0], self.clipWindowPoint1[1]))
-        print(self.vertexes)
-        print(clipped_polygon_vertexes)
-        clipped_polygon_vertexes = [(int(x), int(y)) for x, y in clipped_polygon_vertexes]
-        self.join_vertexes(clipped_polygon_vertexes, Qt.red)
+        # 按照正则矩形的下边开始逆时针依次进行裁剪
+        self.clip(self.clipWindowPoint1[0], self.clipWindowPoint1[1],
+                  self.clipWindowPoint3[0], self.clipWindowPoint1[1])
+        self.clip(self.clipWindowPoint3[0], self.clipWindowPoint1[1],
+                  self.clipWindowPoint3[0], self.clipWindowPoint3[1])
+        self.clip(self.clipWindowPoint3[0], self.clipWindowPoint3[1],
+                  self.clipWindowPoint1[0], self.clipWindowPoint3[1])
+        self.clip(self.clipWindowPoint1[0], self.clipWindowPoint3[1],
+                  self.clipWindowPoint1[0], self.clipWindowPoint1[1])
+        self.vertexes = [(int(x), int(y)) for x, y in self.vertexes]
+        self.join_vertexes(self.vertexes, Qt.red)
 
     def bresenham_drawline(self, x0, y0, x1, y1, color):
         dx = abs(x1 - x0)
